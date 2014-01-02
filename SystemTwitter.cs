@@ -11,31 +11,30 @@ using System.Net.Sockets;
 
 public class SystemTwitter : MonoBehaviour {
 
-	private const string	STR_AUTHOR = "Authorization";
-	private const string    STR_CONTENT = "Content-Type";
-	private const string    STR_REQ_TOKEN_URL   = "https://api.twitter.com/oauth/request_token?oauth_callback=oob";
-	private const string    STR_OAUTH_URL       = "http://api.twitter.com/oauth/authorize?oauth_token={0}";
-	private const string    STR_ACCESS_TOKEN_URL= "https://api.twitter.com/oauth/access_token";
-	private const string 	STR_POST_TWEET_MEDIA_URL = "http://api.twitter.com/1.1/statuses/update_with_media.json";
-	private const string    STR_POST_TWEET_URL  = "https://api.twitter.com/1.1/statuses/update.json";
+	private const string STR_AUTHOR = "Authorization";
+	private const string STR_CONTENT = "Content-Type";
+	private const string STR_TCP_CONNECT_URL = "api.twitter.com";
+	private const int PORT = 80;
+	private const string STR_REQ_TOKEN_URL = "https://api.twitter.com/oauth/request_token?oauth_callback=oob";
+	private const string STR_OAUTH_URL = "http://api.twitter.com/oauth/authorize?oauth_token={0}";
+	private const string STR_ACCESS_TOKEN_URL = "https://api.twitter.com/oauth/access_token";
+	private const string STR_POST_TWEET_MEDIA_URL = "http://api.twitter.com/1.1/statuses/update_with_media.json";
+	private const string STR_POST_TWEET_URL = "https://api.twitter.com/1.1/statuses/update.json";
 	
-	public const string     STR_PPREFS_USER_ID              = "TwitterUserID";
-    public const string     STR_PPREFS_USER_NAME            = "TwitterUserScreenName";
-    public const string     STR_PPREFS_USER_ATOKEN          = "TwitterUserAccessToken";
-    public const string     STR_PPREFS_USER_ATOKEN_SECRET   = "TwitterUserAccessTokenSecret";
-
-	private string pincode;
+	public const string STR_PPREFS_USER_ID = "TwitterUserID";
+    public const string STR_PPREFS_USER_NAME = "TwitterUserScreenName";
+    public const string STR_PPREFS_USER_ATOKEN = "TwitterUserAccessToken";
+    public const string STR_PPREFS_USER_ATOKEN_SECRET = "TwitterUserAccessTokenSecret";
 	public string consumerKey;
 	public string consumerSecret;
+	
 	private string m_AccessToken;
 	private string m_AccessTokenSecret;
 	private string m_UserId;
 	private string m_ScreenName;
-	public string request_token;
-	public string request_token_secret;
-	private System.Collections.Hashtable headers;
-
-	private string tweetstr;
+	private string request_token;
+	private string request_token_secret;
+	private string pincode;
 	private TcpClient client;
 	private NetworkStream ns;
 	// シグネチャ計算に必要ないパラメータ
@@ -54,14 +53,12 @@ public class SystemTwitter : MonoBehaviour {
 		"oauth_signature_method",
 		"oauth_consumer_key",
 		"oauth_token",
-		"oauth_verifier",
 	};
 	// Use this for initialization
 	void Start () {
 		LoadPlayerPrefs();
 		GetRequestToken();
 		pincode = "enter pincode";
-		tweetstr = "あいうえおかきくけこ #moesitan";
 
 	}
 	
@@ -73,8 +70,6 @@ public class SystemTwitter : MonoBehaviour {
 	void LoadPlayerPrefs(){
 		m_AccessToken = PlayerPrefs.GetString(STR_PPREFS_USER_ATOKEN);
 		m_AccessTokenSecret = PlayerPrefs.GetString(STR_PPREFS_USER_ATOKEN_SECRET);
-		Debug.Log (m_AccessToken);
-
 		m_UserId = PlayerPrefs.GetString(STR_PPREFS_USER_ID);
 		m_ScreenName = PlayerPrefs.GetString(STR_PPREFS_USER_NAME);
 	}
@@ -83,7 +78,7 @@ public class SystemTwitter : MonoBehaviour {
 	}
 
 	public void PostTweetMedia(string text, byte[] media){
-		StartCoroutine(coPostTweetMedia(text, media));
+		coPostTweetMedia(text, media);
 	}
 
 	IEnumerator coPostTweet(string text){
@@ -112,9 +107,9 @@ public class SystemTwitter : MonoBehaviour {
 
 	}
 
-	IEnumerator coPostTweetMedia(string text, byte[] media){
+	void coPostTweetMedia(string text, byte[] media){
 		client = new TcpClient();
-		client.Connect("api.twitter.com", 80);
+		client.Connect(STR_TCP_CONNECT_URL, PORT);
 		using (NetworkStream ns = client.GetStream())
 		{
 			string BOUNDARY = "MOEMOEMOEMOEMOE";
@@ -122,11 +117,7 @@ public class SystemTwitter : MonoBehaviour {
 
 			contents += "Content-Type: text-plain; charset=UTF-8\r\n";
    			contents += "Content-Disposition: form-data; name=\"status\"\r\n";
-   			contents += "Content-Transfer-Encoding:binary\r\n";
     		contents += "\r\n";
-    		System.Text.Encoding src = System.Text.Encoding.Unicode;
-    		System.Text.Encoding dest = System.Text.Encoding.UTF8;
-    		//text = tweetstr;
     		contents += text + "\r\n";
     		contents += "--"+BOUNDARY+"\r\n";
     		contents += "Content-Disposition: form-data; name=\"media[]\"; filename=\"TEST.png\"\r\n";
@@ -141,7 +132,6 @@ public class SystemTwitter : MonoBehaviour {
 			System.IO.StreamReader sr = new System.IO.StreamReader(ns);
 
 			string req = "POST /1.1/statuses/update_with_media.json HTTP/1.1\r\n";
-			req += "Accept-Encoding: gzip\r\n";
 			req += "User-Agent: Unity\r\n";
 			req += "Content-Type: multipart/form-data; boundary=\"" + BOUNDARY + "\"\r\n";
 
@@ -152,44 +142,11 @@ public class SystemTwitter : MonoBehaviour {
 			req += "Content-Length: " + System.Text.Encoding.UTF8.GetBytes(contents).Length.ToString() + "\r\n\r\n";
 
 			req += contents;
-			sw.Write (req, 0, req.Length);
+			sw.Write (req);
 			Debug.Log (req);
 			sw.Flush();
-			yield return sw;
 			Debug.Log(sr.ReadToEnd());
-
 		}
-		/*
-		WWWForm form = new WWWForm();
-		form.AddField("status", text);
-		Debug.Log(media.width + " " + media.height);
-		string mediatext4 = System.Convert.ToBase64String(media.EncodeToPNG());
-		form.AddBinaryData("media[]", media.EncodeToPNG(), "media.png", "application/octet-stream");
-		//form.AddField("media",mediatext4);
-
-		Hashtable hash = new Hashtable();
-		hash[STR_AUTHOR] = makePostTweetMediaHeader(text, media);
-		hash["Content-Type"] = "multipart/form-data; boundary=-" +form;
-		WWW www = new WWW(STR_POST_TWEET_MEDIA_URL, form.data, hash);
-		//WWW www = new WWW("http://localhost:5656", form.data, hash);
-		yield return www;
-		foreach(KeyValuePair<string, string> param in www.responseHeaders){
-			Debug.Log("key " + param.Key + " value " + param.Value);
-		}
-		if(string.IsNullOrEmpty(www.error)){
-			// エラーチェック
-			string error = Regex.Match( www.text, @"<error>([^&]+)</error>" ).Groups[1].Value;
-			if( !string.IsNullOrEmpty(error) ){
-				Debug.Log( string.Format("PostTweet - failed. {0}", error) );
-			}
-			else{   // ツイート成功
-				Debug.Log( "OnPostTweetMedia - success." );
-			}
-		}
-		else{
-			Debug.Log("OnPostTweetMedia - failed.");
-		}
-		*/
 		client.Close();
 	}
 
@@ -253,7 +210,7 @@ public class SystemTwitter : MonoBehaviour {
         return ret;
 	}
 
-string makePostTweetMediaHeader(string text){
+	string makePostTweetMediaHeader(string text){
 		Dictionary<string, string> hash = new Dictionary<string, string>();
 
 		hash.Add("oauth_version", "1.0");
@@ -314,7 +271,6 @@ string makePostTweetMediaHeader(string text){
 
 	void OnGUI(){
 		pincode = GUI.TextField(new Rect(100, 0, 100, 50), pincode);
-		tweetstr = GUI.TextField(new Rect(200, 0, 100, 50), tweetstr);
 		if(GUI.Button(new Rect(0, 0, 100, 100), "test")){
 			GetAccessToken();
 		}
