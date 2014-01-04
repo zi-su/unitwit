@@ -18,7 +18,7 @@ public class SystemTwitter : MonoBehaviour {
 	private const string STR_REQ_TOKEN_URL = "https://api.twitter.com/oauth/request_token?oauth_callback=oob";
 	private const string STR_OAUTH_URL = "http://api.twitter.com/oauth/authorize?oauth_token={0}";
 	private const string STR_ACCESS_TOKEN_URL = "https://api.twitter.com/oauth/access_token";
-	private const string STR_POST_TWEET_MEDIA_URL = "http://api.twitter.com/1.1/statuses/update_with_media.json";
+	private const string STR_POST_TWEET_MEDIA_URL = "https://api.twitter.com/1.1/statuses/update_with_media.json";
 	private const string STR_POST_TWEET_URL = "https://api.twitter.com/1.1/statuses/update.json";
 	
 	public const string STR_PPREFS_USER_ID = "TwitterUserID";
@@ -110,7 +110,7 @@ public class SystemTwitter : MonoBehaviour {
 	IEnumerator coPostTweetMedia(string text, byte[] media){
 		WWWForm form = new WWWForm();
 		form.AddField("status", text);
-		form.AddBinaryData("media[]", media, "media.png", "application/octet-stream");
+		form.AddBinaryData("media[]", media, "media.png", "image/png");
 
 		Hashtable header = new Hashtable();
 		header = form.headers;
@@ -247,8 +247,6 @@ public class SystemTwitter : MonoBehaviour {
 
         // 完成
         string ret = string.Format( "OAuth {0}", headerBuilder.ToString() );
-
-        Debug.Log(ret);
 
         return ret;
 	}

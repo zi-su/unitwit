@@ -8,24 +8,37 @@ public class AngelaInteractData{
 	public string typename;
 	public string[] voices;
 	public float waitTime;
+	public string dispname;
 	public string urlPicture;
 };
 
 public class EyeRaycast : MonoBehaviour {
 
 
-
+	Dictionary<string, string> dic;
 	public GameObject angela;
 	public float looktime;
 	public AngelaInteractData[] data;
 
 	private bool isCaptureScreenShot;
 	private string lookparts;
+	private string screenshotPath;
+	private string screenshotName;
 	// Use this for initialization
 	void Start () {
 		looktime = 0.0f;
 		isCaptureScreenShot = false;
 		lookparts = "";
+		dic = new Dictionary<string, string>();
+		dic.Add("head", "かお");
+		dic.Add("bust", "おっぱい");
+		#if UNITY_EDITOR
+		screenshotPath = "";
+		screenshotName = "screenshot.png";
+		#else
+		screenshotPath = Application.dataPath + "/Data/";
+		screenshotName = "screenshot.png";
+		#endif
 	}
 	
 	// Update is called once per frame
@@ -41,42 +54,38 @@ public class EyeRaycast : MonoBehaviour {
 			foreach(AngelaInteractData d in data_){
 				if(d.typename == name){
 					looktime += Time.deltaTime;
-					//if(looktime > d.waitTime){
-					if(Input.GetKeyDown(KeyCode.V) && isCaptureScreenShot == false){
+					if(looktime > d.waitTime && isCaptureScreenShot == false){
+					//if(Input.GetKeyDown(KeyCode.V) && isCaptureScreenShot == false){
 						looktime = 0.0f;
 						angela.GetComponent<AngelaTalk>().TalkAngry(d.voices[Random.Range(0, d.voices.Length)]);
 						CaptureScreenShot();
-						lookparts = d.typename;
+						Debug.Log(d.dispname);
+						Debug.Log(d.typename);
+						lookparts = dic[d.typename];
 					}
 				}
 			}
 		}
 		if(isCaptureScreenShot){
-			if(File.Exists("screenshot.png")){
-				isCaptureScreenShot = false;	
-				FileStream fs = new FileStream("screenshot.png", FileMode.Open);
+			if(File.Exists(screenshotPath + screenshotName)){
+				isCaptureScreenShot = false;
+				Debug.Log(Application.dataPath);
+				FileStream fs = new FileStream(screenshotPath + screenshotName, FileMode.Open);
 				BinaryReader br = new BinaryReader(fs);
-				
 				byte[] raw = br.ReadBytes((int)br.BaseStream.Length);
-				
-				
-				
+
 				int num = PlayerPrefs.GetInt (lookparts);
 				PlayerPrefs.SetInt (lookparts, num + 1);
 				string charaname = angela.name;
-				float time =System.Environment.TickCount;
 				GameObject.Find("SystemTwitter").GetComponent<SystemTwitter>().PostTweetMedia("私は" + charaname + "の" + lookparts + "を" + PlayerPrefs.GetInt(lookparts) + "回見つめました" + " #萌えシタン暴き", raw);
-				float aftime = System.Environment.TickCount;
-				float elaps = aftime - time;
-				Debug.Log("read time " + elaps.ToString());
 			}
 		}
 		angela.GetComponent<CharacterController>().enabled = true;
 	}
 
 	void CaptureScreenShot(){
-		File.Delete("screenshot.png");
-		Application.CaptureScreenshot("screenshot.png");
+		File.Delete(screenshotPath + screenshotName);
+		Application.CaptureScreenshot(screenshotName);
 		isCaptureScreenShot = true;
 	}
 }
