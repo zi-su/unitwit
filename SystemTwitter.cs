@@ -33,11 +33,7 @@ public class SystemTwitter : MonoBehaviour {
 	private string m_ScreenName;
 	public string request_token;
 	public string request_token_secret;
-	private System.Collections.Hashtable headers;
-	
-	private string tweetstr;
-	private TcpClient client;
-	private NetworkStream ns;
+
 	// シグネチャ計算に必要ないパラメータ
 	private static readonly string[]    SECRET_PARAMS = new[]
 	{
@@ -58,11 +54,9 @@ public class SystemTwitter : MonoBehaviour {
 	};
 	// Use this for initialization
 	void Start () {
-		PlayerPrefs.DeleteAll();
+		LoadPlayerPrefs ();
 		GetRequestToken();
 		pincode = "enter pincode";
-		tweetstr = "あいうえおかきくけこ #moesitan";
-		
 	}
 	
 	// Update is called once per frame
@@ -73,8 +67,7 @@ public class SystemTwitter : MonoBehaviour {
 	void LoadPlayerPrefs(){
 		m_AccessToken = PlayerPrefs.GetString(STR_PPREFS_USER_ATOKEN);
 		m_AccessTokenSecret = PlayerPrefs.GetString(STR_PPREFS_USER_ATOKEN_SECRET);
-		Debug.Log (m_AccessToken);
-		
+
 		m_UserId = PlayerPrefs.GetString(STR_PPREFS_USER_ID);
 		m_ScreenName = PlayerPrefs.GetString(STR_PPREFS_USER_NAME);
 	}
@@ -113,78 +106,30 @@ public class SystemTwitter : MonoBehaviour {
 	}
 	
 	IEnumerator coPostTweetMedia(string text, byte[] media){
-		/*
-		client = new TcpClient();
-		client.Connect("api.twitter.com", 80);
-		using (NetworkStream ns = client.GetStream())
-		{
-			string BOUNDARY = "MOEMOEMOEMOEMOE";
-			string contents ="--"+BOUNDARY+"\r\n";
-			
-			contents += "Content-Type: text-plain; charset=UTF-8\r\n";
-			contents += "Content-Disposition: form-data; name=\"status\"\r\n";
-			contents += "Content-Transfer-Encoding:binary\r\n";
-			contents += "\r\n";
-			System.Text.Encoding src = System.Text.Encoding.Unicode;
-			System.Text.Encoding dest = System.Text.Encoding.UTF8;
-			//text = tweetstr;
-			contents += text + "\r\n";
-			contents += "--"+BOUNDARY+"\r\n";
-			contents += "Content-Disposition: form-data; name=\"media[]\"; filename=\"TEST.png\"\r\n";
-			contents += "Content-Type: application/octet-stream\r\n";
-			contents += "Content-Transfer-Encoding: base64\r\n";
-			contents += "\r\n";
-			contents += Convert.ToBase64String(media, Base64FormattingOptions.InsertLineBreaks);
-			contents += "\r\n";
-			contents += "--"+BOUNDARY+"--\r\n";
-			
-			System.IO.StreamWriter sw = new System.IO.StreamWriter(ns);
-			System.IO.StreamReader sr = new System.IO.StreamReader(ns);
-			
-			string req = "POST /1.1/statuses/update_with_media.json HTTP/1.1\r\n";
-			req += "Accept-Encoding: gzip\r\n";
-			req += "User-Agent: Unity\r\n";
-			req += "Content-Type: multipart/form-data; boundary=\"" + BOUNDARY + "\"\r\n";
-			
-			req += "Authorization: " + makePostTweetMediaHeader(text);
-			req += "\r\n";
-			req += "Connection: close\r\n";
-			req += "Host: api.twitter.com\r\n";
-			req += "Content-Length: " + System.Text.Encoding.UTF8.GetBytes(contents).Length.ToString() + "\r\n\r\n";
-			
-			req += contents;
-			sw.Write (req, 0, req.Length);
-			Debug.Log (req);
-			sw.Flush();
-			yield return sw;
-			Debug.Log(sr.ReadToEnd());
-		}
-		*/
-
-                WWWForm form = new WWWForm();
-                form.AddField("status", text);
-                form.AddBinaryData("media[]", media, "media.png", "image/png");
-                Hashtable headers = new Hashtable();
+		WWWForm form = new WWWForm();
+		form.AddField("status", text);
+		form.AddBinaryData("media[]", media, "media.png", "image/png");
+		Hashtable headers = new Hashtable();
 		headers = form.headers;
 		headers[STR_AUTHOR] = makePostTweetMediaHeader();
 		WWW www = new WWW(STR_POST_TWEET_MEDIA_URL, form.data, headers);
-                yield return www;
-                foreach(KeyValuePair<string, string> param in www.responseHeaders){
-                        Debug.Log("key " + param.Key + " value " + param.Value);
-                }
-                if(string.IsNullOrEmpty(www.error)){
-                        // エラーチェック
-                        string error = Regex.Match( www.text, @"<error>([^&]+)</error>" ).Groups[1].Value;
-                        if( !string.IsNullOrEmpty(error) ){
-                                Debug.Log( string.Format("PostTweet - failed. {0}", error) );
-                        }
-                        else{   // ツイート成功
-                                Debug.Log( "OnPostTweetMedia - success." );
-                        }
-                }
-                else{
-                        Debug.Log("OnPostTweetMedia - failed.");
-                }
+		yield return www;
+		foreach(KeyValuePair<string, string> param in www.responseHeaders){
+			Debug.Log("key " + param.Key + " value " + param.Value);
+		}
+		if(string.IsNullOrEmpty(www.error)){
+			// エラーチェック
+			string error = Regex.Match( www.text, @"<error>([^&]+)</error>" ).Groups[1].Value;
+			if( !string.IsNullOrEmpty(error) ){
+				Debug.Log( string.Format("PostTweet - failed. {0}", error) );
+			}
+			else{   // ツイート成功
+				Debug.Log( "OnPostTweetMedia - success." );
+			}
+		}
+		else{
+			Debug.Log("OnPostTweetMedia - failed.");
+		}
 	}
 	
 	string makePostTweetHeader(string text){
@@ -308,7 +253,6 @@ public class SystemTwitter : MonoBehaviour {
 	
 	void OnGUI(){
 		pincode = GUI.TextField(new Rect(100, 0, 100, 50), pincode);
-		tweetstr = GUI.TextField(new Rect(200, 0, 100, 50), tweetstr);
 		if(GUI.Button(new Rect(0, 0, 100, 100), "test")){
 			GetAccessToken();
 		}
@@ -456,7 +400,6 @@ public class SystemTwitter : MonoBehaviour {
 			UrlEncode( NormalizeUrl( url ) ),
 			makeStringForSignature( nonSecretParams )
 			);
-		Debug.Log (base_str);
 		// ハッシュ生成用のキー
 		string key = string.Format(
 			#if USE_CULTURE
@@ -466,7 +409,6 @@ public class SystemTwitter : MonoBehaviour {
 			UrlEncode( parameters["oauth_consumer_secret"] ),
 			parameters.ContainsKey("oauth_token_secret") ? UrlEncode(parameters["oauth_token_secret"]) : string.Empty
 			);
-		Debug.Log(key);
 		// ハッシュ生成
 		HMACSHA1 hmacsha1 = new HMACSHA1( Encoding.UTF8.GetBytes(key) );
 		
@@ -510,8 +452,7 @@ public class SystemTwitter : MonoBehaviour {
 				log += "\n    ScreenName : " + m_ScreenName;
 				log += "\n    Token : " + m_AccessToken;
 				log += "\n    TokenSecret : " + m_AccessTokenSecret;
-				Debug.Log( log );
-				
+
 				// PlayerPrefsに保存
 				PlayerPrefs.SetString( STR_PPREFS_USER_ID, m_UserId );
 				PlayerPrefs.SetString( STR_PPREFS_USER_NAME, m_ScreenName );
