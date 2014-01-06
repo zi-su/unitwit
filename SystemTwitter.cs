@@ -10,31 +10,32 @@ using System;
 using System.Net.Sockets;
 
 public class SystemTwitter : MonoBehaviour {
-
-	private const string STR_AUTHOR = "Authorization";
-	private const string STR_CONTENT = "Content-Type";
-	private const string STR_TCP_CONNECT_URL = "api.twitter.com";
-	private const int PORT = 80;
-	private const string STR_REQ_TOKEN_URL = "https://api.twitter.com/oauth/request_token?oauth_callback=oob";
-	private const string STR_OAUTH_URL = "http://api.twitter.com/oauth/authorize?oauth_token={0}";
-	private const string STR_ACCESS_TOKEN_URL = "https://api.twitter.com/oauth/access_token";
-	private const string STR_POST_TWEET_MEDIA_URL = "https://api.twitter.com/1.1/statuses/update_with_media.json";
-	private const string STR_POST_TWEET_URL = "https://api.twitter.com/1.1/statuses/update.json";
 	
-	public const string STR_PPREFS_USER_ID = "TwitterUserID";
-    public const string STR_PPREFS_USER_NAME = "TwitterUserScreenName";
-    public const string STR_PPREFS_USER_ATOKEN = "TwitterUserAccessToken";
-    public const string STR_PPREFS_USER_ATOKEN_SECRET = "TwitterUserAccessTokenSecret";
+	private const string        STR_AUTHOR = "Authorization";
+	private const string    STR_CONTENT = "Content-Type";
+	private const string    STR_REQ_TOKEN_URL   = "https://api.twitter.com/oauth/request_token?oauth_callback=oob";
+	private const string    STR_OAUTH_URL       = "http://api.twitter.com/oauth/authorize?oauth_token={0}";
+	private const string    STR_ACCESS_TOKEN_URL= "https://api.twitter.com/oauth/access_token";
+	private const string         STR_POST_TWEET_MEDIA_URL = "https://api.twitter.com/1.1/statuses/update_with_media.json";
+	private const string    STR_POST_TWEET_URL  = "https://api.twitter.com/1.1/statuses/update.json";
+	
+	public const string     STR_PPREFS_USER_ID              = "TwitterUserID";
+	public const string     STR_PPREFS_USER_NAME            = "TwitterUserScreenName";
+	public const string     STR_PPREFS_USER_ATOKEN          = "TwitterUserAccessToken";
+	public const string     STR_PPREFS_USER_ATOKEN_SECRET   = "TwitterUserAccessTokenSecret";
+	
+	private string pincode;
 	public string consumerKey;
 	public string consumerSecret;
-	
 	private string m_AccessToken;
 	private string m_AccessTokenSecret;
 	private string m_UserId;
 	private string m_ScreenName;
-	private string request_token;
-	private string request_token_secret;
-	private string pincode;
+	public string request_token;
+	public string request_token_secret;
+	private System.Collections.Hashtable headers;
+	
+	private string tweetstr;
 	private TcpClient client;
 	private NetworkStream ns;
 	// シグネチャ計算に必要ないパラメータ
@@ -53,44 +54,48 @@ public class SystemTwitter : MonoBehaviour {
 		"oauth_signature_method",
 		"oauth_consumer_key",
 		"oauth_token",
+		"oauth_verifier",
 	};
 	// Use this for initialization
 	void Start () {
-		LoadPlayerPrefs();
-		//GetRequestToken();
+		PlayerPrefs.DeleteAll();
+		GetRequestToken();
 		pincode = "enter pincode";
-
+		tweetstr = "あいうえおかきくけこ #moesitan";
+		
 	}
 	
 	// Update is called once per frame
 	void Update () {
-	
+		
 	}
-
+	
 	void LoadPlayerPrefs(){
 		m_AccessToken = PlayerPrefs.GetString(STR_PPREFS_USER_ATOKEN);
 		m_AccessTokenSecret = PlayerPrefs.GetString(STR_PPREFS_USER_ATOKEN_SECRET);
+		Debug.Log (m_AccessToken);
+		
 		m_UserId = PlayerPrefs.GetString(STR_PPREFS_USER_ID);
 		m_ScreenName = PlayerPrefs.GetString(STR_PPREFS_USER_NAME);
 	}
 	public void PostTweet(string text){
 		StartCoroutine(coPostTweet(text));
 	}
-
+	
 	public void PostTweetMedia(string text, byte[] media){
 		StartCoroutine(coPostTweetMedia(text, media));
 	}
-
+	
 	IEnumerator coPostTweet(string text){
 		WWWForm form = new WWWForm();
 		form.AddField("status", text);
-
+		
 		Hashtable header = new Hashtable();
 		header = form.headers;
 		header[STR_AUTHOR] = makePostTweetHeader(text);
 		WWW www = new WWW(STR_POST_TWEET_URL, form.data, header);
 		yield return www;
-
+		
 		if( !string.IsNullOrEmpty(www.error) ){
 			Debug.Log( string.Format("PostTweet - failed. {0}", www.error) );
 		}
@@ -104,106 +109,154 @@ public class SystemTwitter : MonoBehaviour {
 				Debug.Log( "OnPostTweet - success." );
 			}
 		}
-
+		
 	}
-
+	
 	IEnumerator coPostTweetMedia(string text, byte[] media){
-		WWWForm form = new WWWForm();
-		form.AddField("status", text);
-		form.AddBinaryData("media[]", media, "media.png", "image/png");
+		/*
+		client = new TcpClient();
+		client.Connect("api.twitter.com", 80);
+		using (NetworkStream ns = client.GetStream())
+		{
+			string BOUNDARY = "MOEMOEMOEMOEMOE";
+			string contents ="--"+BOUNDARY+"\r\n";
+			
+			contents += "Content-Type: text-plain; charset=UTF-8\r\n";
+			contents += "Content-Disposition: form-data; name=\"status\"\r\n";
+			contents += "Content-Transfer-Encoding:binary\r\n";
+			contents += "\r\n";
+			System.Text.Encoding src = System.Text.Encoding.Unicode;
+			System.Text.Encoding dest = System.Text.Encoding.UTF8;
+			//text = tweetstr;
+			contents += text + "\r\n";
+			contents += "--"+BOUNDARY+"\r\n";
+			contents += "Content-Disposition: form-data; name=\"media[]\"; filename=\"TEST.png\"\r\n";
+			contents += "Content-Type: application/octet-stream\r\n";
+			contents += "Content-Transfer-Encoding: base64\r\n";
+			contents += "\r\n";
+			contents += Convert.ToBase64String(media, Base64FormattingOptions.InsertLineBreaks);
+			contents += "\r\n";
+			contents += "--"+BOUNDARY+"--\r\n";
+			
+			System.IO.StreamWriter sw = new System.IO.StreamWriter(ns);
+			System.IO.StreamReader sr = new System.IO.StreamReader(ns);
+			
+			string req = "POST /1.1/statuses/update_with_media.json HTTP/1.1\r\n";
+			req += "Accept-Encoding: gzip\r\n";
+			req += "User-Agent: Unity\r\n";
+			req += "Content-Type: multipart/form-data; boundary=\"" + BOUNDARY + "\"\r\n";
+			
+			req += "Authorization: " + makePostTweetMediaHeader(text);
+			req += "\r\n";
+			req += "Connection: close\r\n";
+			req += "Host: api.twitter.com\r\n";
+			req += "Content-Length: " + System.Text.Encoding.UTF8.GetBytes(contents).Length.ToString() + "\r\n\r\n";
+			
+			req += contents;
+			sw.Write (req, 0, req.Length);
+			Debug.Log (req);
+			sw.Flush();
+			yield return sw;
+			Debug.Log(sr.ReadToEnd());
+		}
+		*/
 
-		Hashtable header = new Hashtable();
-		header = form.headers;
-		header[STR_AUTHOR] = makePostTweetMediaHeader(text);
-		WWW www = new WWW(STR_POST_TWEET_MEDIA_URL, form.data, header);
-		yield return www;
-		
-		if( !string.IsNullOrEmpty(www.error) ){
-			Debug.Log( string.Format("PostTweetMedia - failed. {0}", www.error) );
-		}
-		else
-		{   // エラーチェック
-			string error = Regex.Match( www.text, @"<error>([^&]+)</error>" ).Groups[1].Value;
-			if( !string.IsNullOrEmpty(error) ){
-				Debug.Log( string.Format("PostTweet - failed. {0}", error) );
-			}
-			else{   // ツイート成功
-				Debug.Log( "OnPostTweetMedia - success." );
-			}
-		}
-		
+                WWWForm form = new WWWForm();
+                form.AddField("status", text);
+                form.AddBinaryData("media[]", media, "media.png", "image/png");
+                Hashtable headers = new Hashtable();
+		headers = form.headers;
+		headers[STR_AUTHOR] = makePostTweetMediaHeader();
+		WWW www = new WWW(STR_POST_TWEET_MEDIA_URL, form.data, headers);
+                yield return www;
+                foreach(KeyValuePair<string, string> param in www.responseHeaders){
+                        Debug.Log("key " + param.Key + " value " + param.Value);
+                }
+                if(string.IsNullOrEmpty(www.error)){
+                        // エラーチェック
+                        string error = Regex.Match( www.text, @"<error>([^&]+)</error>" ).Groups[1].Value;
+                        if( !string.IsNullOrEmpty(error) ){
+                                Debug.Log( string.Format("PostTweet - failed. {0}", error) );
+                        }
+                        else{   // ツイート成功
+                                Debug.Log( "OnPostTweetMedia - success." );
+                        }
+                }
+                else{
+                        Debug.Log("OnPostTweetMedia - failed.");
+                }
 	}
-
+	
 	string makePostTweetHeader(string text){
 		Dictionary<string, string> hash = new Dictionary<string, string>();
-
-		hash.Add("oauth_version", "1.0");
+		
+		hash.Add("oauth_verifier", "1.0");
 		hash.Add("oauth_nonce", GenerateNonce());
 		hash.Add("oauth_timestamp", GenerateTimeStamp());
 		hash.Add("oauth_signature_method", "HMAC-SHA1");
 		hash.Add("oauth_consumer_key", consumerKey);
 		hash.Add("oauth_consumer_secret", consumerSecret);
-
+		
 		hash.Add("oauth_token", m_AccessToken);
 		hash.Add("oauth_token_secret", m_AccessTokenSecret);
 		hash.Add("status", text);
-
+		
 		string signature = GenerateSignature(
 			"POST",
 			STR_POST_TWEET_URL,
 			hash);
-
+		
 		hash.Add("oauth_signature", signature);
-
+		
 		// アルファベット順にソートしつつ必要なパラメータを選出
-        SortedDictionary<string, string> sortedParams = new SortedDictionary<string, string>();
-        foreach( KeyValuePair<string, string> param in hash )
-        {
-            foreach( string oauth_header_param in OAUTH_HEADER_PARAMS )
-            {
-                if( oauth_header_param.Contains( param.Key ) ){
-                    sortedParams.Add( param.Key, param.Value );
-                }
-            }
-        }
-
-        // ソートされたパラメータをエスケープしてガッチャンコ
-        StringBuilder headerBuilder = new StringBuilder();
-        bool bFirst = true;
-        foreach( var item in sortedParams )
-        {
-            if( bFirst ){
-                bFirst = false;
-                headerBuilder.AppendFormat(
-                    "{0}=\"{1}\"",
-                    UrlEncode(item.Key),
-                    UrlEncode(item.Value));
-            }
-            else{   // 2番目以降の値は , 付き
-                headerBuilder.AppendFormat(
-                    ",{0}=\"{1}\"",
-                    UrlEncode(item.Key),
-                    UrlEncode(item.Value)
-                );
-            }
-        }
-
-        // 完成
-        string ret = string.Format( "OAuth {0}", headerBuilder.ToString() );
-
-        return ret;
+		SortedDictionary<string, string> sortedParams = new SortedDictionary<string, string>();
+		foreach( KeyValuePair<string, string> param in hash )
+		{
+			foreach( string oauth_header_param in OAUTH_HEADER_PARAMS )
+			{
+				if( oauth_header_param.Contains( param.Key ) ){
+					sortedParams.Add( param.Key, param.Value );
+				}
+			}
+		}
+		
+		// ソートされたパラメータをエスケープしてガッチャンコ
+		StringBuilder headerBuilder = new StringBuilder();
+		bool bFirst = true;
+		foreach( var item in sortedParams )
+		{
+			if( bFirst ){
+				bFirst = false;
+				headerBuilder.AppendFormat(
+					"{0}=\"{1}\"",
+					UrlEncode(item.Key),
+					UrlEncode(item.Value));
+			}
+			else{   // 2番目以降の値は , 付き
+				headerBuilder.AppendFormat(
+					",{0}=\"{1}\"",
+					UrlEncode(item.Key),
+					UrlEncode(item.Value)
+					);
+			}
+		}
+		
+		// 完成
+		string ret = string.Format( "OAuth {0}", headerBuilder.ToString() );
+		
+		return ret;
 	}
-
-	string makePostTweetMediaHeader(string text){
+	
+	string makePostTweetMediaHeader(){
 		Dictionary<string, string> hash = new Dictionary<string, string>();
-
+		
 		hash.Add("oauth_version", "1.0");
 		hash.Add("oauth_nonce", GenerateNonce());
 		hash.Add("oauth_timestamp", GenerateTimeStamp());
 		hash.Add("oauth_signature_method", "HMAC-SHA1");
 		hash.Add("oauth_consumer_key", consumerKey);
 		hash.Add("oauth_consumer_secret", consumerSecret);
-
+		
 		hash.Add("oauth_token", m_AccessToken);
 		hash.Add("oauth_token_secret", m_AccessTokenSecret);
 		string signature = GenerateSignature(
@@ -211,53 +264,56 @@ public class SystemTwitter : MonoBehaviour {
 			STR_POST_TWEET_MEDIA_URL,
 			hash);
 		hash.Add("oauth_signature", signature);
-
+		
 		// アルファベット順にソートしつつ必要なパラメータを選出
-        SortedDictionary<string, string> sortedParams = new SortedDictionary<string, string>();
-        foreach( KeyValuePair<string, string> param in hash )
-        {
-            foreach( string oauth_header_param in OAUTH_HEADER_PARAMS )
-            {
-                if( oauth_header_param.Contains( param.Key ) ){
-                    sortedParams.Add( param.Key, param.Value );
-                }
-            }
-        }
-
-        // ソートされたパラメータをエスケープしてガッチャンコ
-        StringBuilder headerBuilder = new StringBuilder();
-        bool bFirst = true;
-        foreach( var item in sortedParams )
-        {
-            if( bFirst ){
-                bFirst = false;
-                headerBuilder.AppendFormat(
-                    "{0}=\"{1}\"",
-                    UrlEncode(item.Key),
-                    UrlEncode(item.Value));
-            }
-            else{   // 2番目以降の値は , 付き
-                headerBuilder.AppendFormat(
-                    ",{0}=\"{1}\"",
-                    UrlEncode(item.Key),
-                    UrlEncode(item.Value)
-                );
-            }
-        }
-
-        // 完成
-        string ret = string.Format( "OAuth {0}", headerBuilder.ToString() );
-
-        return ret;
+		SortedDictionary<string, string> sortedParams = new SortedDictionary<string, string>();
+		foreach( KeyValuePair<string, string> param in hash )
+		{
+			foreach( string oauth_header_param in OAUTH_HEADER_PARAMS )
+			{
+				if( oauth_header_param.Contains( param.Key ) ){
+					sortedParams.Add( param.Key, param.Value );
+				}
+			}
+		}
+		
+		// ソートされたパラメータをエスケープしてガッチャンコ
+		StringBuilder headerBuilder = new StringBuilder();
+		bool bFirst = true;
+		foreach( var item in sortedParams )
+		{
+			if( bFirst ){
+				bFirst = false;
+				headerBuilder.AppendFormat(
+					"{0}=\"{1}\"",
+					UrlEncode(item.Key),
+					UrlEncode(item.Value));
+			}
+			else{   // 2番目以降の値は , 付き
+				headerBuilder.AppendFormat(
+					",{0}=\"{1}\"",
+					UrlEncode(item.Key),
+					UrlEncode(item.Value)
+					);
+			}
+		}
+		
+		// 完成
+		string ret = string.Format( "OAuth {0}", headerBuilder.ToString() );
+		
+		Debug.Log(ret);
+		
+		return ret;
 	}
-
+	
 	void OnGUI(){
-		//pincode = GUI.TextField(new Rect(100, 0, 100, 50), pincode);
-		//if(GUI.Button(new Rect(0, 0, 100, 100), "test")){
-		//	GetAccessToken();
-		//}
+		pincode = GUI.TextField(new Rect(100, 0, 100, 50), pincode);
+		tweetstr = GUI.TextField(new Rect(200, 0, 100, 50), tweetstr);
+		if(GUI.Button(new Rect(0, 0, 100, 100), "test")){
+			GetAccessToken();
+		}
 	}
-
+	
 	void GetRequestToken(){
 		if(string.IsNullOrEmpty(consumerKey) || string.IsNullOrEmpty(consumerSecret)){
 		}
@@ -265,16 +321,16 @@ public class SystemTwitter : MonoBehaviour {
 			StartCoroutine("coRequestToken");
 		}
 	}
-
+	
 	private IEnumerator coRequestToken(){
 		System.Collections.Hashtable headers = new Hashtable();
 		headers[STR_AUTHOR] = makeRequestTokenHeader();
-
+		
 		byte[] dummy = new byte[1];
 		dummy[0] = 0;
 		WWW www = new WWW(STR_REQ_TOKEN_URL, dummy, headers);
 		yield return www;
-
+		
 		if(string.IsNullOrEmpty(www.error)){
 			// トークン文字列の取得
 			request_token = Regex.Match( www.text, @"oauth_token=([^&]+)" ).Groups[1].Value;
@@ -299,7 +355,7 @@ public class SystemTwitter : MonoBehaviour {
 			Debug.Log("error");
 		}
 	}
-
+	
 	string makeRequestTokenHeader(){
 		Dictionary<string , string> param = new Dictionary<string , string>();
 		//header
@@ -309,11 +365,11 @@ public class SystemTwitter : MonoBehaviour {
 		param.Add("oauth_signature_method", "HMAC-SHA1");
 		param.Add("oauth_consumer_key", consumerKey);
 		param.Add("oauth_consumer_secret", consumerSecret);
-
+		
 		param.Add("oauth_callback", "oob");
-
+		
 		string signature = GenerateSignature("POST", STR_REQ_TOKEN_URL, param);
-
+		
 		param.Add("oauth_signature", signature);
 		SortedDictionary<string, string> sortedParams = new SortedDictionary<string, string>();
 		foreach(KeyValuePair<string, string> paramstr in  param){
@@ -323,7 +379,7 @@ public class SystemTwitter : MonoBehaviour {
 				}
 			}
 		}
-
+		
 		// ソートされたパラメータをエスケープしてガッチャンコ
 		StringBuilder headerBuilder = new StringBuilder();
 		bool bFirst = true;
@@ -347,7 +403,7 @@ public class SystemTwitter : MonoBehaviour {
 		
 		// 完成
 		string ret = string.Format( "OAuth {0}", headerBuilder.ToString() );
-
+		
 		return ret;
 	}
 	
@@ -365,7 +421,7 @@ public class SystemTwitter : MonoBehaviour {
 			)
 			.ToString( CultureInfo.CurrentCulture );
 	}
-
+	
 	public string GenerateSignature(string reqType, string url, Dictionary<string, string> parameters){
 		// 計算に必要なパラメータ用のDictionary
 		Dictionary<string, string> nonSecretParams = new Dictionary<string, string>();
@@ -422,112 +478,112 @@ public class SystemTwitter : MonoBehaviour {
 		
 		return str_signature;
 	}
-
+	
 	public void GetAccessToken(){
 		StartCoroutine(coGetAccessToken(pincode));
 	}
-
+	
 	private IEnumerator coGetAccessToken(string pincode){
 		Hashtable hash = new Hashtable();
 		hash[STR_AUTHOR] = makeAccessTokenHeader(pincode);
-
+		
 		byte[] dummy = new byte[1];
 		dummy[0] = 0;
-
+		
 		WWW www = new WWW(STR_ACCESS_TOKEN_URL, dummy, hash);
 		yield return www;
-
+		
 		if(string.IsNullOrEmpty(www.error)){
 			// トークン文字列とユーザーID,名前の取得
-            m_AccessToken       = Regex.Match(www.text, @"oauth_token=([^&]+)").Groups[1].Value;
-            m_AccessTokenSecret = Regex.Match(www.text, @"oauth_token_secret=([^&]+)").Groups[1].Value;
-            m_UserId            = Regex.Match(www.text, @"user_id=([^&]+)").Groups[1].Value;
-            m_ScreenName        = Regex.Match(www.text, @"screen_name=([^&]+)").Groups[1].Value;
-
-            if( !string.IsNullOrEmpty(m_AccessToken) &&
-                !string.IsNullOrEmpty(m_AccessTokenSecret) &&
-                !string.IsNullOrEmpty(m_UserId) &&
-                !string.IsNullOrEmpty(m_ScreenName) )
-            {
-                string log = "OnAccessTokenCallback - succeeded";
-                log += "\n    UserId : " + m_UserId;
-                log += "\n    ScreenName : " + m_ScreenName;
-                log += "\n    Token : " + m_AccessToken;
-                log += "\n    TokenSecret : " + m_AccessTokenSecret;
-                Debug.Log( log );
-
-                // PlayerPrefsに保存
-                PlayerPrefs.SetString( STR_PPREFS_USER_ID, m_UserId );
-                PlayerPrefs.SetString( STR_PPREFS_USER_NAME, m_ScreenName );
-                PlayerPrefs.SetString( STR_PPREFS_USER_ATOKEN, m_AccessToken );
-                PlayerPrefs.SetString( STR_PPREFS_USER_ATOKEN_SECRET, m_AccessTokenSecret );
-            }
-            else{   // トークン取れなかったらエラー扱い
-                Debug.Log( string.Format("GetAccessToken - failed. response : {0}", www.text) );
-            }
+			m_AccessToken       = Regex.Match(www.text, @"oauth_token=([^&]+)").Groups[1].Value;
+			m_AccessTokenSecret = Regex.Match(www.text, @"oauth_token_secret=([^&]+)").Groups[1].Value;
+			m_UserId            = Regex.Match(www.text, @"user_id=([^&]+)").Groups[1].Value;
+			m_ScreenName        = Regex.Match(www.text, @"screen_name=([^&]+)").Groups[1].Value;
+			
+			if( !string.IsNullOrEmpty(m_AccessToken) &&
+			   !string.IsNullOrEmpty(m_AccessTokenSecret) &&
+			   !string.IsNullOrEmpty(m_UserId) &&
+			   !string.IsNullOrEmpty(m_ScreenName) )
+			{
+				string log = "OnAccessTokenCallback - succeeded";
+				log += "\n    UserId : " + m_UserId;
+				log += "\n    ScreenName : " + m_ScreenName;
+				log += "\n    Token : " + m_AccessToken;
+				log += "\n    TokenSecret : " + m_AccessTokenSecret;
+				Debug.Log( log );
+				
+				// PlayerPrefsに保存
+				PlayerPrefs.SetString( STR_PPREFS_USER_ID, m_UserId );
+				PlayerPrefs.SetString( STR_PPREFS_USER_NAME, m_ScreenName );
+				PlayerPrefs.SetString( STR_PPREFS_USER_ATOKEN, m_AccessToken );
+				PlayerPrefs.SetString( STR_PPREFS_USER_ATOKEN_SECRET, m_AccessTokenSecret );
+			}
+			else{   // トークン取れなかったらエラー扱い
+				Debug.Log( string.Format("GetAccessToken - failed. response : {0}", www.text) );
+			}
 		}
 		else{
-
+			
 		}
 	}
-
+	
 	string makeAccessTokenHeader(string pincode){
 		Dictionary<string, string> header = new Dictionary<string, string>();
-
+		
 		header.Add("oauth_version", "1.0");
 		header.Add("oauth_nonce", GenerateNonce());
 		header.Add("oauth_timestamp", GenerateTimeStamp());
 		header.Add("oauth_signature_method", "HMAC-SHA1");
 		header.Add("oauth_consumer_key", consumerKey);
 		header.Add("oauth_consumer_secret", consumerSecret);
-
+		
 		header.Add("oauth_token", request_token);
 		header.Add("oauth_verifier", pincode);
-
+		
 		string signature = GenerateSignature(
 			"POST",
 			STR_ACCESS_TOKEN_URL,
 			header);
 		header.Add("oauth_signature", signature);
-
+		
 		SortedDictionary<string, string> sortedParams = new SortedDictionary<string, string>();
-        foreach( KeyValuePair<string, string> param in header )
-        {
-            foreach( string oauth_header_param in OAUTH_HEADER_PARAMS )
-            {
-                if( oauth_header_param.Contains( param.Key ) ){
-                    sortedParams.Add( param.Key, param.Value );
-                }
-            }
-        }
-
-
-        // ソートされたパラメータをエスケープしてガッチャンコ
-        StringBuilder headerBuilder = new StringBuilder();
-        bool bFirst = true;
-        foreach( var item in sortedParams )
-        {
-            if( bFirst ){
-                bFirst = false;
-                headerBuilder.AppendFormat(
-                    "{0}=\"{1}\"",
-                    UrlEncode(item.Key),
-                    UrlEncode(item.Value));
-            }
-            else{   // 2番目以降の値は , 付き
-                headerBuilder.AppendFormat(
-                    ",{0}=\"{1}\"",
-                    UrlEncode(item.Key),
-                    UrlEncode(item.Value)
-                );
-            }
-        }
-
-        // 完成
-        string ret = string.Format( "OAuth {0}", headerBuilder.ToString() );
-
-        return ret;
-
+		foreach( KeyValuePair<string, string> param in header )
+		{
+			foreach( string oauth_header_param in OAUTH_HEADER_PARAMS )
+			{
+				if( oauth_header_param.Contains( param.Key ) ){
+					sortedParams.Add( param.Key, param.Value );
+				}
+			}
+		}
+		
+		
+		// ソートされたパラメータをエスケープしてガッチャンコ
+		StringBuilder headerBuilder = new StringBuilder();
+		bool bFirst = true;
+		foreach( var item in sortedParams )
+		{
+			if( bFirst ){
+				bFirst = false;
+				headerBuilder.AppendFormat(
+					"{0}=\"{1}\"",
+					UrlEncode(item.Key),
+					UrlEncode(item.Value));
+			}
+			else{   // 2番目以降の値は , 付き
+				headerBuilder.AppendFormat(
+					",{0}=\"{1}\"",
+					UrlEncode(item.Key),
+					UrlEncode(item.Value)
+					);
+			}
+		}
+		
+		// 完成
+		string ret = string.Format( "OAuth {0}", headerBuilder.ToString() );
+		
+		return ret;
+		
 	}
 	// URLを正規化して返す
 	public string   NormalizeUrl( string url )
@@ -555,7 +611,7 @@ public class SystemTwitter : MonoBehaviour {
 		
 		return normalizedUrl;
 	}
-
+	
 	string UrlEncode(string value){
 		if( string.IsNullOrEmpty(value) ){
 			return string.Empty;
@@ -584,7 +640,7 @@ public class SystemTwitter : MonoBehaviour {
 		
 		return value;
 	}
-
+	
 	// パラメータリストを繋いでシグネチャ計算用の文字列を作る
 	private string   makeStringForSignature( IEnumerable<KeyValuePair<string, string>> parameters )
 	{
